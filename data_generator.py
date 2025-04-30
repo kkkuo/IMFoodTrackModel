@@ -37,12 +37,9 @@ OPENAI_JSON_SCHEMA = {
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY_1")
 OPENAI_CLIENT = OpenAI(api_key=OPENAI_API_KEY)
 genai.configure(api_key=GEMINI_API_KEY)
 GEMINI_CLIENT = genai.GenerativeModel("gemini-1.5-flash")
-OPENROUTER_CLIENT = OpenAI(api_key=OPENROUTER_API_KEY,
-                           base_url="https://openrouter.ai/api/v1")
 
 
 def import_image(image_path):
@@ -142,45 +139,6 @@ def gemini_api_query(image_array):
         return {"error": "Failed to parse response", "raw": text}
 
 
-def openrouter_api_query(image_array, model):
-    response = OPENROUTER_CLIENT.chat.completions.create(
-        model=model,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": "你是營養專家，你的任務是從一張圖片中提取食物的營養成分。請根據以下流程完成營養成分提取:\n\n"
-                                "1. 請先分析圖片中的食物，並確定其類型和數量。對於你不確定的資訊請就最有可能、最常見的狀況進行估計\n"
-                                "2. 根據食物的類型和數量，計算出每種營養成分的含量。\n"
-                                "3. 最後將結果以**純 JSON 格式返回**，格式如下：\n"
-                                "{\n"
-                                "    \"Calories(kcal)\": 0,\n"
-                                "    \"Carbohydrates(g)\": 0,\n"
-                                "     \"Fat(g)\": 0,\n"
-                                "    \"Protein(g)\": 0\n"
-                                "}\n"
-                                "請注意，這些數據是基於你對食物的分析和估算得出的，並請四捨五入到小數點後第一位，並且你不能因為資訊不足就不估計或是返回錯誤格式。",
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": "data:image/png;base64," + encode_image(image_array)
-                        }
-                    }
-                ]
-            }
-        ],
-    )
-    if response.choices[0].message:
-        content = response.choices[0].message.content
-        json_str = re.search(r'\{.*\}', content, re.DOTALL).group()
-        return json.loads(json_str)
-    else:
-        raise ValueError("API response did not include tool_calls.")
-
-
 def process_folder(folder_path, filename):
     if not os.path.exists(folder_path):
         print(f"Folder {folder_path} does not exist.")
@@ -212,18 +170,9 @@ def process_folder(folder_path, filename):
             info_openai = openai_api_query(image_array)
             print("Gemini API Querying...")
             info_gemini = gemini_api_query(image_array)
-            print("Llama Maverick (Openrouter API) Querying...")
-            info_llama = openrouter_api_query(
-                image_array, "meta-llama/llama-4-maverick:free")
-            print("Google Gemma (Openrouter API) Querying...")
-            info_gemma = openrouter_api_query(
-                image_array, "google/gemma-3-12b-it:free")
             print("OpenAI 回傳：", info_openai)
             print("Gemini 回傳：", info_gemini)
-            print("Llama 回傳：", info_llama)
-            print("Gemma 回傳：", info_gemma)
-
-            models = [info_openai, info_gemini, info_llama, info_gemma]
+            models = [info_openai, info_gemini]
             keys = ["Calories(kcal)", "Carbohydrates(g)",
                     "Protein(g)", "Fat(g)"]
 
